@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+data/*.dbn.zst
+data/front_1s.bin
+data/front_meta.json
+data/roll_schedule.csv
+journal.json
+drawings.json

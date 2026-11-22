@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NQ tape</title>
+<style>
+  :root {
+    --bg: #0c0f12;
+    --panel: #14191e;
+    --panel-2: #1b2128;
+    --line: #2a333c;
+    --text: #e8edf2;
+    --muted: #8d99a6;
+    --green: #3ecf8e;
+    --red: #f07178;
+    --amber: #e0b15a;
+    --blue: #8eb6e0;
+    --ink: #16181d;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  button, select, input { font: inherit; color: var(--text); }
+  button {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: 4px 8px; cursor: pointer;
+  }
+  button:hover { border-color: #3d4a56; }
+  button.active { border-color: var(--blue); color: white; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  header {
+    height: 46px; display: flex; align-items: center; gap: 12px;
+    padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+  .brand { font-weight: 650; letter-spacing: 0.04em; }
+  .brand span { color: var(--muted); font-weight: 450; margin-left: 6px; }
+  #contract { color: var(--text); font-variant-numeric: tabular-nums; }
+  #rollflag { color: var(--amber); display: none; }
+  #px { font-variant-numeric: tabular-nums; font-size: 15px; }
+  #pnl { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+  #pnl.up { color: var(--green); }
+  #pnl.dn { color: var(--red); }
+  #tfs { display: flex; gap: 4px; overflow-x: auto; }
+  #tfs button { padding: 3px 7px; }
+  #stage { flex: 1; display: flex; min-height: 0; }
+  #tools {
+    width: 44px; flex: none; background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0;
+  }
+  #tools button { width: 30px; height: 30px; padding: 0; }
+  #chartcard {
+    flex: 1; min-width: 0; margin: 10px; background: #fff; border-radius: 6px;
+    display: flex; flex-direction: column; position: relative; overflow: hidden;
+  }
+  #chartwrap { flex: 1; position: relative; min-height: 0; }
+  #shade, #chart, #draw { position: absolute; inset: 0; }
+  #shade { z-index: 0; pointer-events: none; }
+  #chart { z-index: 1; }
+  #draw { z-index: 2; pointer-events: none; }
+  #draw.hot { pointer-events: auto; cursor: crosshair; touch-action: none; }
+  #legend {
+    position: absolute; top: 8px; left: 10px; z-index: 4; pointer-events: none;
+    color: #4b5563; font-size: 11px; display: flex; gap: 12px;
+  }
+  #legend i { display: inline-block; width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; }
+  #textin {
+    position: absolute; z-index: 4; display: none; width: 160px;
+    background: #fff; color: #16181d; border: 1px solid #16181d; padding: 2px 4px;
+  }
+  aside {
+    width: 332px; flex: none; background: var(--panel);
+    border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0;
+  }
+  aside h2 {
+    margin: 0; padding: 10px 12px; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  #book { flex: 1; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 11px; position: sticky; top: 0; background: var(--panel); }
+  td.l, th.l { text-align: left; }
+  .up { color: var(--green); }
+  .dn { color: var(--red); }
+  details { border-top: 1px solid var(--line); padding: 8px 12px 12px; color: var(--muted); font-size: 12px; }
+  details summary { cursor: pointer; color: var(--text); }
+  footer {
+    flex: none; background: #0e1114; border-top: 1px solid var(--line); padding: 8px 12px 10px;
+  }
+  #transport { display: flex; align-items: center; gap: 8px; }
+  #slider { flex: 1; accent-color: #3d8bfd; }
+  #when { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 168px; }
+  #ticket { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  #ticket label { color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  #ticket input, #ticket select {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; width: 72px;
+  }
+  #jump { width: 168px; }
+  #buy { background: #14352c; border-color: #1f6b4e; color: var(--green); }
+  #sell { background: #3a1c22; border-color: #7a3038; color: var(--red); }
+  #flat { color: var(--amber); }
+  #preview { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #fine { margin-top: 6px; color: #66727e; font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">NQ <span>tape</span></div>
+  <div id="contract">—</div>
+  <div id="rollflag">roll</div>
+  <div id="px">—</div>
+  <div id="tfs"></div>
+  <div id="pnl">$0.00</div>
+</header>
+<div id="stage">
+  <div id="tools">
+    <button type="button" data-tool="cursor" class="active" title="Pointer. Click a drawing to edit it. Escape leaves a tool.">↖</button>
+    <button type="button" data-tool="trend" title="Trend line. Click again or Escape to leave.">╱</button>
+    <button type="button" data-tool="hline" title="Horizontal line. Click again or Escape to leave.">—</button>
+    <button type="button" data-tool="rect" title="Rectangle. Click again or Escape to leave.">▭</button>
+    <button type="button" data-tool="text" title="Text. Click again or Escape to leave.">T</button>
+    <button type="button" data-tool="eraser" title="Eraser. Click a drawing to delete it.">×</button>
+    <input id="ink" type="color" value="#16181d" title="Drawing color" style="width:26px;height:26px;padding:0;border:1px solid var(--line);background:transparent" />
+  </div>
+  <div id="chartcard">
+    <div id="legend">
+      <span><i style="background:rgba(168,214,204,0.85)"></i>01:00–10:00 UTC</span>
+      <span><i style="background:rgba(186,206,240,0.95)"></i>13:30–16:30 UTC</span>
+    </div>
+    <div id="chartwrap">
+      <canvas id="shade"></canvas>
+      <div id="chart"></div>
+      <canvas id="draw"></canvas>
+      <input id="textin" />
+    </div>
+  </div>
+  <aside>
+    <h2>Journal <button type="button" id="clearj">Clear</button></h2>
+    <div id="book">
+      <table>
+        <thead>
+          <tr>
+            <th class="l">Time</th><th class="l">Side</th><th>Qty</th><th>Entry</th><th>Exit</th><th>Pts</th><th>$</th><th>R</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <details>
+      <summary>How this tape was built</summary>
+      <p id="rule"></p>
+      <p id="stats"></p>
+    </details>
+  </aside>
+</div>
+<footer>
+  <div id="transport">
+    <button type="button" id="tostart" title="Latest session open">|‹</button>
+    <input id="slider" type="range" min="0" max="0" value="0" />
+    <button type="button" id="back" title="Previous candle">‹</button>
+    <button type="button" id="play" title="Play / pause">▶</button>
+    <button type="button" id="fwd" title="Next candle">›</button>
+    <select id="tfsel"></select>
+    <select id="speed">
+      <option value="1">1×</option>
+      <option value="2">2×</option>
+      <option value="5">5×</option>
+      <option value="10">10×</option>
+      <option value="25">25×</option>
+    </select>
+    <button type="button" id="toend" title="End of tape">›|</button>
+    <button type="button" id="reset" title="Reset the chart view">Reset</button>
+    <span id="when">—</span>
+  </div>
+  <div id="ticket">
+    <button type="button" id="buy">Buy</button>
+    <button type="button" id="sell">Sell</button>
+    <button type="button" id="flat" disabled>Flatten</button>
+    <label>Qty <input id="qty" type="number" min="1" max="100" value="1" /></label>
+    <label>SL pts <input id="slpts" type="number" min="0" step="0.25" value="10" /></label>
+    <label>TP pts <input id="tppts" type="number" min="0" step="0.25" value="20" /></label>
+    <label>
+      <select id="product">
+        <option value="20">NQ $20</option>
+        <option value="2">MNQ $2</option>
+      </select>
+    </label>
+    <label>Comm <input id="comm" type="number" min="0" step="0.5" value="4.5" /></label>
+    <span id="preview"></span>
+    <input id="jump" placeholder="2024-05-28 13:30 UTC" />
+    <button type="button" id="go">Jump</button>
+    <button type="button" id="rth">09:30 ET</button>
+  </div>
+  <div id="fine">
+    Market fills one tick through the last revealed price. Stops and targets are checked on each one-second bar after the fill.
+    A stop that gaps fills at the open, then one more tick. If stop and target are both inside the same second, the one closer to the open is used, and a tie is the stop.
+    Charting is TradingView Lightweight Charts with drawing tools in this page.
+    Click the pointer or press Escape to leave a tool. Click a drawing to select it, drag to move, drag a handle to resize, and press Delete to remove it.
+  </div>
+</footer>
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+const TF = { "1s":1,"2s":2,"3s":3,"5s":5,"15s":15,"30s":30,"1m":60,"2m":120,"3m":180,"5m":300,"15m":900,"30m":1800,"1h":3600,"4h":14400 };
+const MINT = "rgba(168, 214, 204, 0.45)";
+const MINT_EDGE = "rgba(90, 168, 156, 0.95)";
+const BLUE = "rgba(186, 206, 240, 0.48)";
+const BLUE_EDGE = "rgba(120, 150, 210, 0.95)";
+const VOL_UP = "rgba(94, 184, 176, 0.9)";
+const VOL_DN = "rgba(224, 154, 166, 0.92)";
+const S = {
+  tf: "1m", cursor: 0, days: [], bars: [], sessions: [],
+  playing: false, busy: false, loadingMore: false,
+  pos: null, trades: [], drawings: [],
+  tool: "cursor", tick: 0.25, info: null, meta: null, selected: null, draft: null, drag: null, edit: null,
+  pendingRange: null,
+};
+let booted = false;
+const $ = (id) => document.getElementById(id);
+
+const chart = LightweightCharts.createChart($("chart"), {
+  autoSize: true,
+  layout: {
+    background: { type: "solid", color: "transparent" },
+    textColor: "#131722",
+    fontSize: 12,
+  },
+  grid: {
+    vertLines: { color: "rgba(226,230,237,0.9)" },
+    horzLines: { color: "rgba(226,230,237,0.9)" },
+  },
+  rightPriceScale: { borderColor: "#e6e9ef" },
+  timeScale: {
+    borderColor: "#e6e9ef", timeVisible: true, secondsVisible: false,
+    rightOffset: 6, shiftVisibleRangeOnNewBar: false,
+  },
+  crosshair: { vertLine: { color: "#9aa3af", labelBackgroundColor: "#16181d" }, horzLine: { color: "#9aa3af", labelBackgroundColor: "#16181d" } },
+  localization: {
+    timeFormatter: (t) => stamp(t) + " UTC",
+    tickMarkFormatter: (t, type) => {
+      const d = new Date(t * 1000);
+      const p = (n) => String(n).padStart(2, "0");
+      if (type < 3) return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+      const hh = p(d.getUTCHours()) + ":" + p(d.getUTCMinutes());
+      return TF[S.tf] < 60 ? hh + ":" + p(d.getUTCSeconds()) : hh;
+    },
+  },
+});
+const candle = chart.addCandlestickSeries({
+  upColor: "#ffffff",
+  downColor: "#16181d",
+  borderUpColor: "#16181d",
+  borderDownColor: "#16181d",
+  wickUpColor: "#16181d",
+  wickDownColor: "#16181d",
+  priceLineColor: "#16181d",
+  lastValueVisible: true,
+});
+const volume = chart.addHistogramSeries({
+  priceFormat: { type: "volume" },
+  priceScaleId: "vol",
+});
+volume.priceScale().applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+candle.priceScale().applyOptions({ scaleMargins: { top: 0.08, bottom: 0.22 } });
+
+function stamp(t) {
+  const d = new Date(t * 1000);
+  const p = (n) => String(n).padStart(2, "0");
+  return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate())
+    + " " + p(d.getUTCHours()) + ":" + p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds());
+}
+function et(t) {
+  return new Date(t * 1000).toLocaleString("en-US", {
+    timeZone: "America/New_York", hour12: false,
+    month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+}
+function money(n) {
+  const v = (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v;
+}
+function px(n) {
+  return Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function roundTick(p) { return Math.round(p / S.tick) * S.tick; }
+function pv() { return Number($("product").value); }
+function qty() { return Math.max(1, Number($("qty").value) || 1); }
+function comm() { return Math.max(0, Number($("comm").value) || 0); }
+
+function buildTfs() {
+  const box = $("tfs");
+  const sel = $("tfsel");
+  for (const name of Object.keys(TF)) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = name;
+    b.dataset.tf = name;
+    b.onclick = () => setTf(name);
+    box.appendChild(b);
+    const o = document.createElement("option");
+    o.value = name;
+    o.textContent = name;
+    sel.appendChild(o);
+  }
+  sel.value = S.tf;
+  sel.onchange = () => setTf(sel.value);
+  markTf();
+}
+function markTf() {
+  for (const b of $("tfs").querySelectorAll("button")) b.classList.toggle("active", b.dataset.tf === S.tf);
+  $("tfsel").value = S.tf;
+  chart.applyOptions({ timeScale: { secondsVisible: TF[S.tf] < 60 } });
+}
+function setTf(name) {
+  if (!TF[name] || name === S.tf) return;
+  const range = chart.timeScale().getVisibleRange();
+  S.tf = name;
+  markTf();
+  if (range && typeof range.from === "number" && typeof range.to === "number" && range.to > range.from) {
+    S.pendingRange = { from: range.from, to: range.to };
+    return show("restore");
+  }
+  return show("pin");
+}
+
+async function boot() {
+  buildTfs();
+  const [meta, trades, drawings] = await Promise.all([
+    fetch("/api/meta").then((r) => r.json()),
+    fetch("/api/journal").then((r) => r.json()),
+    fetch("/api/drawings").then((r) => r.json()),
+  ]);
+  S.meta = meta;
+  S.days = meta.days;
+  S.trades = Array.isArray(trades) ? trades : [];
+  S.drawings = Array.isArray(drawings) ? drawings : [];
+  S.tick = meta.tick;
+  $("slider").max = String(Math.max(0, S.days.length - 1));
+  $("rule").textContent = meta.rule;
+  const st = meta.stats || {};
+  $("stats").textContent =
+    meta.rows.toLocaleString() + " front-month seconds, " + meta.sessions + " sessions, " + meta.rolls
+    + " rolls. Dropped " + (st.not_front || 0).toLocaleString() + " back-month seconds, "
+    + (st.closed_session || 0).toLocaleString() + " halt seconds, "
+    + (st.spike || 0).toLocaleString() + " spike prints, "
+    + (st.bad_ohlc || 0).toLocaleString() + " bad OHLC, "
+    + (st.wide_second || 0).toLocaleString() + " wide seconds. Built " + meta.built + ".";
+  const view = readView();
+  if (view && TF[view.tf]) S.tf = view.tf;
+  markTf();
+  if (view && typeof view.from === "number" && typeof view.to === "number" && view.to > view.from) {
+    S.pendingRange = { from: view.from, to: view.to };
+  }
+  let ts = S.days[S.days.length - 1].start_ts;
+  if (view && Number.isFinite(view.cursor)) ts = view.cursor;
+  else {
+    for (const t of S.trades) {
+      const end = t.exit_time || t.entry_time;
+      if (Number.isFinite(end) && end > ts) ts = end;
+    }
+  }
+  await applyCursor(ts, false, S.pendingRange ? "restore" : "pin");
+  booted = true;
+  writeView();
+}
+function readView() {
+  try {
+    const view = JSON.parse(localStorage.getItem("nq-tape-view") || "null");
+    return view && typeof view === "object" ? view : null;
+  } catch (e) {
+    return null;
+  }
+}
+function writeView() {
+  if (!S.cursor || !S.bars.length) return;
+  const range = chart.timeScale().getVisibleRange();
+  if (!range || typeof range.from !== "number" || typeof range.to !== "number" || range.to <= range.from) return;
+  try {
+    localStorage.setItem("nq-tape-view", JSON.stringify({
+      cursor: S.cursor, tf: S.tf, from: range.from, to: range.to,
+    }));
+  } catch (e) {}
+}
+let viewTimer = 0;
+let holdingCamera = false;
+function saveView() {
+  clearTimeout(viewTimer);
+  viewTimer = setTimeout(writeView, 150);
+}
+async function applyCursor(ts, scanGap, mode) {
+  const info = await fetch("/api/info?cursor=" + ts).then((r) => r.json());
+  if (scanGap && S.pos && info.cursor > S.cursor) {
+    const hit = await scan(S.cursor, info.cursor);
+    if (hit) fillExit(S.pos, hit);
+  }
+  S.cursor = info.cursor;
+  S.info = info;
+  if (booted) syncTrades();
+  else positionAtCursor();
+  await show(mode || "pin");
+  saveJournal();
+  saveView();
+}
+async function show(mode) {
+  if (mode === true) mode = "pin";
+  let count = 500;
+  if (mode === "restore" && S.pendingRange) {
+    const end = Math.max(S.cursor, S.pendingRange.to);
+    const span = Math.max(0, end - S.pendingRange.from);
+    count = Math.min(8000, Math.max(200, Math.ceil(span / TF[S.tf]) + 40));
+  }
+  const data = await fetch("/api/bars?tf=" + S.tf + "&end=" + S.cursor + "&count=" + count).then((r) => r.json());
+  if (mode === "hold" && S.bars.length && data.bars.length) {
+    const cut = data.bars[0].time;
+    const older = S.bars.filter((b) => b.time < cut);
+    const room = Math.max(0, 4000 - data.bars.length);
+    S.bars = older.slice(-room).concat(data.bars);
+    const seen = new Set(data.sessions.map((d) => d.date + d.symbol));
+    S.sessions = S.sessions.filter((d) => !seen.has(d.date + d.symbol)).concat(data.sessions);
+    S.sessions.sort((a, b) => a.start_ts - b.start_ts);
+  } else {
+    S.bars = data.bars;
+    S.sessions = data.sessions;
+  }
+  paint(mode);
+}
+async function loadOlder() {
+  if (!S.bars.length || S.bars[0].time <= S.meta.first) return;
+  const data = await fetch("/api/bars?tf=" + S.tf + "&end=" + (S.bars[0].time - 1) + "&count=400").then((r) => r.json());
+  const first = S.bars[0].time;
+  const older = data.bars.filter((b) => b.time < first);
+  if (!older.length) return;
+  const range = chart.timeScale().getVisibleLogicalRange();
+  S.bars = older.concat(S.bars);
+  const seen = new Set(S.sessions.map((d) => d.date + d.symbol));
+  for (const d of data.sessions) if (!seen.has(d.date + d.symbol)) S.sessions.push(d);
+  S.sessions.sort((a, b) => a.start_ts - b.start_ts);
+  paint("shift");
+  if (range) {
+    chart.timeScale().setVisibleLogicalRange({ from: range.from + older.length, to: range.to + older.length });
+  }
+}
+function resetChart() {
+  candle.priceScale().applyOptions({ autoScale: true });
+  volume.priceScale().applyOptions({ autoScale: true });
+  chart.timeScale().applyOptions({ barSpacing: 6, rightOffset: 6 });
+  const n = S.bars.length;
+  const visible = Math.min(160, n);
+  if (n) chart.timeScale().setVisibleLogicalRange({ from: n - visible, to: n + 5 });
+  requestAnimationFrame(drawOverlays);
+}
+function keepRange(range) {
+  try { chart.timeScale().setVisibleRange(range); } catch (e) {}
+}
+function paint(mode) {
+  const logical = mode === "hold" ? chart.timeScale().getVisibleLogicalRange() : null;
+  const restore = mode === "restore" ? S.pendingRange : null;
+  const hold = restore && typeof restore.from === "number" && typeof restore.to === "number" && restore.to > restore.from;
+  if (hold) holdingCamera = true;
+  candle.setData(S.bars.map((b) => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+  volume.setData(S.bars.map((b) => ({
+    time: b.time, value: b.volume, color: b.close >= b.open ? VOL_UP : VOL_DN,
+  })));
+  if (logical && Number.isFinite(logical.from) && Number.isFinite(logical.to)) {
+    chart.timeScale().setVisibleLogicalRange(logical);
+  } else if (hold) {
+    const held = { from: restore.from, to: restore.to };
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      keepRange(held);
+      holdingCamera = false;
+      drawOverlays();
+      saveView();
+    }));
+  } else if (mode === "pin" || mode === true) {
+    chart.timeScale().scrollToRealTime();
+  }
+  if (mode === "restore") S.pendingRange = null;
+  updateHud();
+  requestAnimationFrame(drawOverlays);
+}
+
+function positionAtCursor() {
+  S.pos = null;
+  for (let i = S.trades.length - 1; i >= 0; i--) {
+    const t = S.trades[i];
+    if (t.entry_time <= S.cursor && (t.exit_time == null || t.exit_time > S.cursor)) {
+      S.pos = t;
+      break;
+    }
+  }
+}
+function syncTrades() {
+  for (const t of S.trades) {
+    if (t.exit_time != null && t.exit_time > S.cursor) clearExit(t);
+  }
+  positionAtCursor();
+}
+function clearExit(t) {
+  t.exit_time = null; t.exit = null; t.reason = null; t.points = null; t.dollars = null; t.r = null;
+}
+function fillExit(t, hit) {
+  const sign = t.side === "long" ? 1 : -1;
+  const points = sign * (hit.price - t.entry);
+  const risk = t.sl == null ? null : Math.abs(t.entry - t.sl);
+  t.exit_time = hit.time;
+  t.exit = hit.price;
+  t.reason = hit.reason;
+  t.points = points;
+  t.dollars = points * t.pv * t.qty - t.comm * t.qty;
+  t.r = risk ? points / risk : null;
+}
+async function scan(after, until) {
+  if (!S.pos) return null;
+  const res = await fetch("/api/scan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ side: S.pos.side, sl: S.pos.sl, tp: S.pos.tp, after, until }),
+  });
+  const data = await res.json();
+  return data.hit;
+}
+function levels(side, entry) {
+  const slPts = Number($("slpts").value) || 0;
+  const tpPts = Number($("tppts").value) || 0;
+  const sl = slPts > 0 ? roundTick(side === "long" ? entry - slPts : entry + slPts) : null;
+  const tp = tpPts > 0 ? roundTick(side === "long" ? entry + tpPts : entry - tpPts) : null;
+  return { sl, tp };
+}
+function place(side) {
+  if (!S.info || S.pos) return;
+  pause();
+  S.trades = S.trades.filter((t) => t.entry_time < S.cursor);
+  const entry = roundTick(side === "long" ? S.info.price + S.tick : S.info.price - S.tick);
+  const { sl, tp } = levels(side, entry);
+  S.trades.push({
+    id: Date.now(),
+    side, qty: qty(), entry, entry_time: S.cursor, sl, tp,
+    pv: pv(), comm: comm(),
+    exit_time: null, exit: null, reason: null, points: null, dollars: null, r: null,
+  });
+  syncTrades();
+  updateHud();
+  saveJournal(true);
+  drawOverlays();
+}
+function flatten() {
+  if (!S.pos || !S.info) return;
+  pause();
+  const price = roundTick(S.pos.side === "long" ? S.info.price - S.tick : S.info.price + S.tick);
+  fillExit(S.pos, { time: S.cursor, price, reason: "flat" });
+  syncTrades();
+  updateHud();
+  saveJournal(true);
+  drawOverlays();
+}
+let journalTimer = 0;
+function postJournal() {
+  if (!booted) return;
+  fetch("/api/journal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ trades: S.trades }),
+    keepalive: true,
+  });
+}
+function saveJournal(now) {
+  if (!booted) return;
+  clearTimeout(journalTimer);
+  if (now) postJournal();
+  else journalTimer = setTimeout(postJournal, 250);
+}
+let drawTimer = 0;
+function saveDrawings() {
+  clearTimeout(drawTimer);
+  drawTimer = setTimeout(() => {
+    fetch("/api/drawings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ drawings: S.drawings }),
+    });
+  }, 250);
+}
+
+function updateHud() {
+  const info = S.info;
+  if (info) {
+    $("contract").textContent = info.symbol + "  " + info.date;
+    $("rollflag").style.display = info.roll ? "block" : "none";
+    $("px").textContent = px(info.price);
+    $("when").textContent = stamp(S.cursor).slice(5) + " UTC · " + et(S.cursor) + " ET";
+    const idx = dayIndex(S.cursor);
+    if (document.activeElement !== $("slider")) $("slider").value = String(idx);
+  }
+  let realized = 0;
+  let open = 0;
+  for (const t of S.trades) {
+    if (t.exit_time != null && t.exit_time <= S.cursor && t.dollars != null) realized += t.dollars;
+  }
+  if (S.pos && info) {
+    const sign = S.pos.side === "long" ? 1 : -1;
+    open = sign * (info.price - S.pos.entry) * S.pos.pv * S.pos.qty - S.pos.comm * S.pos.qty;
+  }
+  const total = realized + open;
+  const el = $("pnl");
+  el.textContent = money(total) + (S.pos ? " open" : "");
+  el.classList.toggle("up", total > 0);
+  el.classList.toggle("dn", total < 0);
+  $("flat").disabled = !S.pos;
+  $("buy").disabled = !!S.pos;
+  $("sell").disabled = !!S.pos;
+  if (info && !S.pos) {
+    const buy = roundTick(info.price + S.tick);
+    const { sl, tp } = levels("long", buy);
+    $("preview").textContent = "Buy " + px(buy) + (sl != null ? "  SL " + px(sl) : "") + (tp != null ? "  TP " + px(tp) : "");
+  } else if (S.pos) {
+    $("preview").textContent = S.pos.side + " " + px(S.pos.entry)
+      + (S.pos.sl != null ? "  SL " + px(S.pos.sl) : "")
+      + (S.pos.tp != null ? "  TP " + px(S.pos.tp) : "");
+  }
+  const body = $("rows");
+  body.innerHTML = "";
+  const shown = S.trades.filter((t) => t.entry_time <= S.cursor);
+  for (const t of shown.slice().reverse()) {
+    const closed = t.exit_time != null && t.exit_time <= S.cursor;
+    const tr = document.createElement("tr");
+    const cls = closed && t.dollars < 0 ? "dn" : closed && t.dollars > 0 ? "up" : "";
+    tr.innerHTML =
+      "<td class='l'>" + stamp(t.entry_time).slice(5, 16) + "</td>"
+      + "<td class='l'>" + t.side + (closed ? " · " + t.reason : "") + "</td>"
+      + "<td>" + t.qty + "</td>"
+      + "<td>" + px(t.entry) + "</td>"
+      + "<td>" + (closed ? px(t.exit) : "—") + "</td>"
+      + "<td class='" + cls + "'>" + (closed ? t.points.toFixed(2) : "—") + "</td>"
+      + "<td class='" + cls + "'>" + (closed ? money(t.dollars) : "—") + "</td>"
+      + "<td class='" + cls + "'>" + (closed && t.r != null ? t.r.toFixed(2) : "—") + "</td>";
+    body.appendChild(tr);
+  }
+}
+function dayIndex(ts) {
+  let i = 0;
+  for (let k = 0; k < S.days.length; k++) {
+    if (S.days[k].start_ts <= ts) i = k;
+    else break;
+  }
+  return i;
+}
+
+async function step(dir, bars) {
+  if (S.busy) return;
+  S.busy = true;
+  try {
+    const n = bars || (dir > 0 ? (Number($("speed").value) || 1) : 1);
+    const prev = S.cursor;
+    const info = await fetch("/api/step?cursor=" + S.cursor + "&tf=" + S.tf + "&dir=" + dir + "&n=" + n).then((r) => r.json());
+    if (info.cursor === prev) {
+      if (dir > 0) pause();
+      return;
+    }
+    if (dir > 0 && S.pos) {
+      const hit = await scan(prev, info.cursor);
+      if (hit) fillExit(S.pos, hit);
+    }
+    S.cursor = info.cursor;
+    S.info = info;
+    syncTrades();
+    await show("hold");
+    saveJournal();
+  } finally {
+    S.busy = false;
+  }
+}
+function pause() {
+  S.playing = false;
+  $("play").textContent = "▶";
+}
+async function loop() {
+  while (S.playing) {
+    const t0 = performance.now();
+    await step(1);
+    if (!S.playing) break;
+    const wait = Math.max(0, 150 - (performance.now() - t0));
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+function toggle() {
+  if (S.playing) { pause(); return; }
+  S.playing = true;
+  $("play").textContent = "❚❚";
+  loop();
+}
+
+function ctx(canvas) {
+  const r = window.devicePixelRatio || 1;
+  const parent = canvas.parentElement;
+  const w = parent.clientWidth;
+  const h = parent.clientHeight;
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  const W = Math.max(1, Math.floor(w * r));
+  const H = Math.max(1, Math.floor(h * r));
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  const g = canvas.getContext("2d");
+  g.setTransform(r, 0, 0, r, 0, 0);
+  g.clearRect(0, 0, w, h);
+  return g;
+}
+function plotBox() {
+  const w = $("chartwrap").clientWidth;
+  const h = $("chartwrap").clientHeight;
+  let tw = 28, pw = 64;
+  try { tw = chart.timeScale().height(); } catch (e) {}
+  try { pw = chart.priceScale("right").width(); } catch (e) {}
+  return { w, h, plotH: Math.max(0, h - tw), plotW: Math.max(0, w - pw) };
+}
+function barStep() {
+  return TF[S.tf] || 60;
+}
+function timeAt(x) {
+  const ts = chart.timeScale();
+  if (S.bars.length && typeof ts.coordinateToLogical === "function") {
+    const logical = ts.coordinateToLogical(x);
+    if (logical != null && Number.isFinite(logical)) {
+      const last = S.bars.length - 1;
+      if (logical <= 0) return S.bars[0].time + logical * barStep();
+      if (logical >= last) return S.bars[last].time + (logical - last) * barStep();
+      const i0 = Math.floor(logical);
+      const span = S.bars[i0 + 1].time - S.bars[i0].time || barStep();
+      return S.bars[i0].time + (logical - i0) * span;
+    }
+  }
+  const direct = ts.coordinateToTime(x);
+  return typeof direct === "number" ? direct : null;
+}
+function xOf(t) {
+  if (typeof t !== "number" || !Number.isFinite(t)) return null;
+  const ts = chart.timeScale();
+  const direct = ts.timeToCoordinate(t);
+  if (direct != null) return direct;
+  if (!S.bars.length) return null;
+  const step = barStep();
+  const pxPerSec = () => (ts.options().barSpacing || 6) / step;
+  const first = S.bars[0].time;
+  const last = S.bars[S.bars.length - 1].time;
+  if (t <= first) {
+    const x0 = ts.timeToCoordinate(first);
+    return x0 == null ? null : x0 + (t - first) * pxPerSec();
+  }
+  if (t >= last) {
+    const x0 = ts.timeToCoordinate(last);
+    return x0 == null ? null : x0 + (t - last) * pxPerSec();
+  }
+  let lo = 0;
+  let hi = S.bars.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (S.bars[mid].time <= t) lo = mid;
+    else hi = mid;
+  }
+  const x0 = ts.timeToCoordinate(S.bars[lo].time);
+  const x1 = ts.timeToCoordinate(S.bars[hi].time);
+  if (x0 == null || x1 == null) return null;
+  const span = S.bars[hi].time - S.bars[lo].time || 1;
+  return x0 + ((t - S.bars[lo].time) / span) * (x1 - x0);
+}
+function yOf(p) { return candle.priceToCoordinate(p); }
+function drawOverlays() {
+  const box = plotBox();
+  const sg = ctx($("shade"));
+  sg.fillStyle = "#ffffff";
+  sg.fillRect(0, 0, box.w, box.h);
+  const range = chart.timeScale().getVisibleRange();
+  if (range && S.bars.length) {
+    const from = typeof range.from === "number" ? range.from : S.bars[0].time;
+    const to = typeof range.to === "number" ? range.to : S.cursor;
+    const day0 = Math.floor(from / 86400) * 86400;
+    const day1 = Math.floor(to / 86400) * 86400;
+    for (let day = day0; day <= day1; day += 86400) {
+      band(sg, day + 3600, day + 10 * 3600, MINT, MINT_EDGE);
+      band(sg, day + 13 * 3600 + 1800, day + 16 * 3600 + 1800, BLUE, BLUE_EDGE);
+    }
+    sg.font = "11px ui-sans-serif, system-ui, sans-serif";
+    sg.fillStyle = "#4b5563";
+    sg.strokeStyle = "#6b7280";
+    sg.lineWidth = 1;
+    sg.setLineDash([1, 3]);
+    for (const sess of S.sessions) {
+      hline(sg, sess.open, Math.max(sess.start_ts, S.bars[0].time), Math.min(sess.end_ts, S.cursor), "True Day Open", box);
+      if (sess.rth != null && sess.rth_ts != null) {
+        hline(sg, sess.rth, Math.max(sess.rth_ts, S.bars[0].time), Math.min(sess.end_ts, S.cursor), "09:30", box);
+      }
+    }
+    sg.setLineDash([]);
+  }
+  const g = ctx($("draw"));
+  if (S.pos && S.bars.length) {
+    zone(g, S.pos.entry_time, S.cursor, S.pos.entry, S.pos.sl, "rgba(214, 75, 75, 0.16)");
+    zone(g, S.pos.entry_time, S.cursor, S.pos.entry, S.pos.tp, "rgba(12, 143, 98, 0.16)");
+    orderLine(g, S.pos.entry, "#215f9a", "Entry", true);
+    if (S.pos.sl != null) orderLine(g, S.pos.sl, "#d64b4b", "SL", false);
+    if (S.pos.tp != null) orderLine(g, S.pos.tp, "#0c8f62", "TP", false);
+  }
+  for (const d of S.drawings) drawShape(g, d, d.id === S.selected);
+  if (S.draft) drawShape(g, S.draft, false);
+}
+function orderMetrics(key, price) {
+  const y = yOf(price);
+  if (y == null || price == null) return null;
+  const text = key + "  " + px(price);
+  const g = $("draw").getContext("2d");
+  g.save();
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.font = "11px ui-sans-serif, system-ui, sans-serif";
+  const tw = g.measureText(text).width;
+  g.restore();
+  const w = tw + 12;
+  const right = plotBox().plotW;
+  const x = key === "SL" ? 8 : Math.max(8, right - w - 8);
+  return { y, x, w, h: 18, top: y - 9, text };
+}
+function orderLine(g, price, color, label, dashed) {
+  const y = yOf(price);
+  if (y == null) return;
+  const right = plotBox().plotW;
+  const tag = label === "Entry" ? null : orderMetrics(label, price);
+  g.save();
+  g.strokeStyle = color;
+  g.lineWidth = S.drag === label ? 2.5 : 1.5;
+  g.setLineDash(dashed ? [5, 4] : []);
+  g.beginPath();
+  g.moveTo(0, y);
+  g.lineTo(right, y);
+  g.stroke();
+  g.setLineDash([]);
+  g.font = "11px ui-sans-serif, system-ui, sans-serif";
+  if (tag) {
+    g.fillStyle = color;
+    g.fillRect(tag.x, tag.top, tag.w, tag.h);
+    g.fillStyle = "#ffffff";
+    g.fillText(tag.text, tag.x + 6, y + 4);
+  } else {
+    const text = label + "  " + px(price);
+    const tw = g.measureText(text).width;
+    const x = Math.max(8, right - tw - 16);
+    g.fillStyle = color;
+    g.fillRect(x, y - 9, tw + 12, 18);
+    g.fillStyle = "#ffffff";
+    g.fillText(text, x + 6, y + 4);
+  }
+  g.restore();
+}
+function chartPoint(ev) {
+  const r = $("chartwrap").getBoundingClientRect();
+  return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+}
+function priceAtY(y) {
+  if (S.dragMap) {
+    const m = S.dragMap;
+    return m.p0 + (y - m.y0) * m.slope;
+  }
+  const direct = candle.coordinateToPrice(y);
+  return typeof direct === "number" && Number.isFinite(direct) ? direct : null;
+}
+function orderAt(ev) {
+  if (!S.pos || S.tool !== "cursor") return null;
+  const pt = chartPoint(ev);
+  for (const [key, price] of [["TP", S.pos.tp], ["SL", S.pos.sl]]) {
+    const tag = orderMetrics(key, price);
+    if (!tag) continue;
+    if (pt.x >= tag.x && pt.x <= tag.x + tag.w && pt.y >= tag.top && pt.y <= tag.top + tag.h) return key;
+  }
+  let best = null;
+  let dist = 10;
+  for (const [key, price] of [["TP", S.pos.tp], ["SL", S.pos.sl]]) {
+    if (price == null) continue;
+    const yy = yOf(price);
+    if (yy == null) continue;
+    const d = Math.abs(yy - pt.y);
+    if (d < dist) { dist = d; best = key; }
+  }
+  return best;
+}
+function clampOrder(key, price) {
+  const tick = S.tick;
+  let pxv = roundTick(price);
+  if (S.pos.side === "long") pxv = key === "SL" ? Math.min(pxv, S.pos.entry - tick) : Math.max(pxv, S.pos.entry + tick);
+  else pxv = key === "SL" ? Math.max(pxv, S.pos.entry + tick) : Math.min(pxv, S.pos.entry - tick);
+  return pxv;
+}
+function applyDrag(ev) {
+  if (!S.drag || !S.pos) return;
+  const price = priceAtY(chartPoint(ev).y);
+  if (price == null) return;
+  const pxv = clampOrder(S.drag, price - (S.dragGrab || 0));
+  if (S.drag === "SL") { S.pos.sl = pxv; $("slpts").value = Math.abs(S.pos.entry - pxv); }
+  else { S.pos.tp = pxv; $("tppts").value = Math.abs(S.pos.entry - pxv); }
+  updateHud();
+  drawOverlays();
+}
+function endOrderDrag() {
+  if (!S.drag) return;
+  S.drag = null;
+  S.dragGrab = 0;
+  S.dragMap = null;
+  if (S.dragAuto != null) candle.priceScale().applyOptions({ autoScale: S.dragAuto });
+  S.dragAuto = null;
+  try { if (S.dragPointer != null) $("chartwrap").releasePointerCapture(S.dragPointer); } catch (e) {}
+  S.dragPointer = null;
+  saveJournal(true);
+  drawOverlays();
+}
+function paintCursor(ev) {
+  if (S.tool !== "cursor") return;
+  let cursor = "";
+  if (S.drag || orderAt(ev)) cursor = "ns-resize";
+  else if (S.edit) cursor = HANDLE_CURSOR[S.edit.handle] || "move";
+  else {
+    const pt = pointer(ev);
+    const hit = pickDrawing(pt.x, pt.y);
+    if (hit) cursor = HANDLE_CURSOR[hit.handle] || "move";
+  }
+  $("chartwrap").style.cursor = cursor;
+  const canvas = $("chart").querySelector("canvas");
+  if (canvas) canvas.style.cursor = cursor;
+}
+function windowRange(a, b) {
+  let hi = -Infinity, lo = Infinity, n = 0;
+  for (let i = 0; i < S.bars.length; i++) {
+    const bar = S.bars[i];
+    if (bar.time < a) continue;
+    if (bar.time >= b) break;
+    if (bar.high > hi) hi = bar.high;
+    if (bar.low < lo) lo = bar.low;
+    n++;
+  }
+  return n ? { hi, lo } : null;
+}
+function band(g, a, b, fill, edge) {
+  const span = windowRange(a, b);
+  if (!span) return;
+  const x1 = xOf(a), x2 = xOf(b);
+  const yHi = yOf(span.hi), yLo = yOf(span.lo);
+  if (x1 == null || x2 == null || yHi == null || yLo == null) return;
+  const left = Math.min(x1, x2);
+  const top = Math.min(yHi, yLo);
+  const w = Math.max(1, Math.abs(x2 - x1));
+  const h = Math.max(1, Math.abs(yLo - yHi));
+  g.fillStyle = fill;
+  g.fillRect(left, top, w, h);
+  g.strokeStyle = edge;
+  g.lineWidth = 1;
+  g.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
+}
+function hline(g, price, t1, t2, label, box) {
+  const y = yOf(price);
+  const x1 = xOf(t1), x2 = xOf(t2);
+  if (y == null || x1 == null || x2 == null) return;
+  if (y < 0 || y > box.plotH) return;
+  g.beginPath();
+  g.moveTo(Math.min(x1, x2), y);
+  g.lineTo(Math.max(x1, x2), y);
+  g.stroke();
+  g.fillText(label, Math.min(box.plotW - 78, Math.max(x1, x2) - 76), y - 4);
+}
+function zone(g, t1, t2, p1, p2, color) {
+  if (p2 == null) return;
+  const x1 = xOf(t1), x2 = xOf(t2), y1 = yOf(p1), y2 = yOf(p2);
+  if (x1 == null || x2 == null || y1 == null || y2 == null) return;
+  g.fillStyle = color;
+  g.fillRect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+}
+function drawShape(g, d, hot) {
+  g.save();
+  g.strokeStyle = d.color || "#16181d";
+  g.fillStyle = d.color || "#16181d";
+  g.lineWidth = hot ? 2 : 1.5;
+  g.setLineDash([]);
+  if (d.type === "hline") {
+    const y = yOf(d.p1);
+    if (y != null) {
+      g.beginPath(); g.moveTo(0, y); g.lineTo(plotBox().plotW, y); g.stroke();
+    }
+  } else if (d.type === "trend") {
+    const x1 = xOf(d.t1), y1 = yOf(d.p1), x2 = xOf(d.t2), y2 = yOf(d.p2);
+    if (x1 != null && y1 != null && x2 != null && y2 != null) {
+      g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    }
+  } else if (d.type === "rect") {
+    const x1 = xOf(d.t1), y1 = yOf(d.p1), x2 = xOf(d.t2), y2 = yOf(d.p2);
+    if (x1 != null && y1 != null && x2 != null && y2 != null) {
+      const left = Math.min(x1, x2);
+      const top = Math.min(y1, y2);
+      const w = Math.max(1, Math.abs(x2 - x1));
+      const h = Math.max(1, Math.abs(y2 - y1));
+      g.globalAlpha = 0.14;
+      g.fillRect(left, top, w, h);
+      g.globalAlpha = 1;
+      g.strokeRect(left + 0.5, top + 0.5, Math.max(0, w - 1), Math.max(0, h - 1));
+      const mid = yOf((d.p1 + d.p2) / 2);
+      if (mid != null) {
+        g.setLineDash([4, 3]);
+        g.beginPath();
+        g.moveTo(left, mid);
+        g.lineTo(left + w, mid);
+        g.stroke();
+        g.setLineDash([]);
+      }
+    }
+  } else if (d.type === "text" && d.text) {
+    const x = xOf(d.t1), y = yOf(d.p1);
+    if (x != null && y != null) {
+      g.font = "12px ui-sans-serif, system-ui, sans-serif";
+      g.fillText(d.text, x, y);
+    }
+  }
+  g.restore();
+  if (hot) drawSelection(g, d);
+}
+function pointer(ev) {
+  const r = $("chartwrap").getBoundingClientRect();
+  const x = ev.clientX - r.left;
+  const y = ev.clientY - r.top;
+  const p = candle.coordinateToPrice(y);
+  return { x, y, t: timeAt(x), p: typeof p === "number" ? p : null };
+}
+function geom(d) {
+  if (d.type === "hline") {
+    const y = yOf(d.p1);
+    if (y == null) return null;
+    return { kind: "hline", y, x1: 0, x2: plotBox().plotW };
+  }
+  if (d.type === "text") {
+    const x = xOf(d.t1), y = yOf(d.p1);
+    if (x == null || y == null) return null;
+    return { kind: "text", x, y };
+  }
+  const x1 = xOf(d.t1), y1 = yOf(d.p1), x2 = xOf(d.t2), y2 = yOf(d.p2);
+  if (x1 == null || y1 == null || x2 == null || y2 == null) return null;
+  return {
+    kind: d.type, x1, y1, x2, y2,
+    left: Math.min(x1, x2), right: Math.max(x1, x2),
+    top: Math.min(y1, y2), bot: Math.max(y1, y2),
+  };
+}
+function closeTo(x, y, px, py, r) {
+  return Math.hypot(x - px, y - py) <= r;
+}
+function onLine(x, y, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.hypot(dx, dy) || 1;
+  const u = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / (len * len)));
+  return Math.hypot(x - (x1 + u * dx), y - (y1 + u * dy)) < 6;
+}
+function rectHandles(g) {
+  const mx = (g.left + g.right) / 2, my = (g.top + g.bot) / 2;
+  return [
+    { name: "nw", x: g.left, y: g.top }, { name: "ne", x: g.right, y: g.top },
+    { name: "sw", x: g.left, y: g.bot }, { name: "se", x: g.right, y: g.bot },
+    { name: "n", x: mx, y: g.top }, { name: "s", x: mx, y: g.bot },
+    { name: "w", x: g.left, y: my }, { name: "e", x: g.right, y: my },
+  ];
+}
+function deleteAt(g) {
+  if (g.kind === "hline") return { x: Math.max(16, g.x2 - 16), y: g.y };
+  if (g.kind === "text") return { x: g.x + 10, y: g.y - 14 };
+  if (g.kind === "trend") return { x: (g.x1 + g.x2) / 2, y: Math.min(g.y1, g.y2) - 14 };
+  return { x: g.right + 11, y: g.top };
+}
+function drawSelection(g, d) {
+  const box = geom(d);
+  if (!box) return;
+  g.save();
+  g.fillStyle = "#ffffff";
+  g.strokeStyle = "#16181d";
+  g.lineWidth = 1;
+  const dots = box.kind === "trend" ? [[box.x1, box.y1], [box.x2, box.y2]]
+    : box.kind === "rect" ? rectHandles(box).map((h) => [h.x, h.y]) : [];
+  for (const [x, y] of dots) {
+    g.fillRect(x - 3, y - 3, 6, 6);
+    g.strokeRect(x - 3.5, y - 3.5, 7, 7);
+  }
+  const del = deleteAt(box);
+  g.beginPath();
+  g.arc(del.x, del.y, 7, 0, Math.PI * 2);
+  g.fill();
+  g.stroke();
+  g.font = "12px ui-sans-serif, system-ui, sans-serif";
+  g.fillStyle = "#16181d";
+  g.fillText("×", del.x - 3.5, del.y + 4);
+  g.restore();
+}
+function pickDrawing(x, y) {
+  for (let i = S.drawings.length - 1; i >= 0; i--) {
+    const d = S.drawings[i];
+    const g = geom(d);
+    if (!g) continue;
+    const selected = d.id === S.selected;
+    if (selected && closeTo(x, y, deleteAt(g).x, deleteAt(g).y, 8)) return { d, handle: "delete" };
+    if (g.kind === "hline") {
+      if (Math.abs(y - g.y) <= 6 && x >= -4 && x <= g.x2 + 4) return { d, handle: "body" };
+      continue;
+    }
+    if (g.kind === "text") {
+      if (Math.abs(x - g.x) < 50 && Math.abs(y - g.y) < 14) return { d, handle: "body" };
+      continue;
+    }
+    if (g.kind === "trend") {
+      if (selected && closeTo(x, y, g.x1, g.y1, 7)) return { d, handle: "p1" };
+      if (selected && closeTo(x, y, g.x2, g.y2, 7)) return { d, handle: "p2" };
+      if (onLine(x, y, g.x1, g.y1, g.x2, g.y2)) return { d, handle: "body" };
+      continue;
+    }
+    if (selected) {
+      for (const h of rectHandles(g)) if (closeTo(x, y, h.x, h.y, 7)) return { d, handle: h.name };
+    }
+    if (x >= g.left - 4 && x <= g.right + 4 && y >= g.top - 4 && y <= g.bot + 4) return { d, handle: "body" };
+  }
+  return null;
+}
+const HANDLE_CURSOR = {
+  n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize",
+  nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize",
+  p1: "move", p2: "move", body: "move", delete: "pointer",
+};
+function useTool(name) {
+  if (S.tool === name && name !== "cursor") name = "cursor";
+  S.tool = name;
+  S.draft = null;
+  for (const o of document.querySelectorAll("#tools button")) o.classList.toggle("active", o.dataset.tool === name);
+  $("draw").classList.toggle("hot", name !== "cursor");
+  drawOverlays();
+}
+function finishDrawing(d) {
+  S.selected = d.id;
+  saveDrawings();
+  useTool("cursor");
+}
+function openTextEditor(d, pt) {
+  const input = $("textin");
+  input.style.display = "block";
+  input.style.left = pt.x + "px";
+  input.style.top = Math.max(0, pt.y - 16) + "px";
+  input.value = d ? (d.text || "") : "";
+  input.focus();
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") {
+      const text = input.value.trim();
+      if (d) {
+        d.text = text;
+        if (!text) S.drawings = S.drawings.filter((x) => x !== d);
+      } else if (text) {
+        const made = { id: Date.now(), type: "text", t1: pt.t, p1: pt.p, text, color: $("ink").value };
+        S.drawings.push(made);
+        S.selected = made.id;
+      }
+      input.style.display = "none";
+      saveDrawings();
+      useTool("cursor");
+    } else if (e.key === "Escape") {
+      input.style.display = "none";
+    }
+  };
+}
+function commitDraft() {
+  if (!S.draft) return;
+  const d = S.draft;
+  S.draft = null;
+  if (d.t1 !== d.t2 || d.p1 !== d.p2) {
+    d.id = Date.now();
+    S.drawings.push(d);
+    finishDrawing(d);
+    return;
+  }
+  drawOverlays();
+}
+function endEdit() {
+  if (!S.edit) return;
+  S.edit = null;
+  try { if (S.editPointer != null) $("chartwrap").releasePointerCapture(S.editPointer); } catch (err) {}
+  S.editPointer = null;
+  saveDrawings();
+  drawOverlays();
+}
+function applyEdit(ev) {
+  const e = S.edit;
+  const d = S.drawings.find((x) => x.id === e.id);
+  const pt = pointer(ev);
+  if (!d) return;
+  const dt = pt.t != null && e.t != null ? pt.t - e.t : (pt.x - e.x) * (e.secPerPx || 0);
+  const dp = pt.p != null && e.p != null ? pt.p - e.p : (pt.y - e.y) * (e.pricePerPx || 0);
+  if (d.type === "hline") d.p1 = roundTick((e.p1 ?? 0) + dp);
+  else if ((d.type === "rect" || d.type === "trend") && e.handle === "body") {
+    const dx = pt.x - e.x;
+    const dy = pt.y - e.y;
+    const x1 = xOf(e.t1), x2 = xOf(e.t2);
+    const t1 = x1 == null ? null : timeAt(x1 + dx);
+    const t2 = x2 == null ? null : timeAt(x2 + dx);
+    if (t1 != null) d.t1 = t1;
+    if (t2 != null) d.t2 = t2;
+    const dPrice = e.pricePerPx ? dy * e.pricePerPx : dp;
+    if (e.p1 != null) d.p1 = roundTick(e.p1 + dPrice);
+    if (e.p2 != null) d.p2 = roundTick(e.p2 + dPrice);
+  } else if (d.type === "text" || e.handle === "body") {
+    if (e.t1 != null) d.t1 = e.t1 + dt;
+    if (e.p1 != null) d.p1 = roundTick(e.p1 + dp);
+    if (e.t2 != null) d.t2 = e.t2 + dt;
+    if (e.p2 != null) d.p2 = roundTick(e.p2 + dp);
+  } else if (e.handle === "p1") {
+    d.t1 = e.t1 + dt;
+    d.p1 = roundTick(e.p1 + dp);
+  } else if (e.handle === "p2") {
+    d.t2 = e.t2 + dt;
+    d.p2 = roundTick(e.p2 + dp);
+  } else {
+    const topIs1 = e.p1 >= e.p2;
+    const leftIs1 = e.t1 <= e.t2;
+    const h = e.handle;
+    if (h === "n" || h === "nw" || h === "ne") {
+      if (topIs1) d.p1 = roundTick(e.p1 + dp); else d.p2 = roundTick(e.p2 + dp);
+    } else if (h === "s" || h === "sw" || h === "se") {
+      if (topIs1) d.p2 = roundTick(e.p2 + dp); else d.p1 = roundTick(e.p1 + dp);
+    }
+    if (h === "w" || h === "nw" || h === "sw") {
+      if (leftIs1) d.t1 = e.t1 + dt; else d.t2 = e.t2 + dt;
+    } else if (h === "e" || h === "ne" || h === "se") {
+      if (leftIs1) d.t2 = e.t2 + dt; else d.t1 = e.t1 + dt;
+    }
+  }
+  drawOverlays();
+}
+$("draw").addEventListener("pointerdown", (ev) => {
+  if (S.tool === "cursor" || ev.button !== 0) return;
+  const pt = pointer(ev);
+  if (pt.t == null || pt.p == null) return;
+  ev.preventDefault();
+  if (S.tool === "eraser") {
+    const hit = pickDrawing(pt.x, pt.y);
+    if (hit) {
+      S.drawings = S.drawings.filter((d) => d !== hit.d);
+      if (S.selected === hit.d.id) S.selected = null;
+      saveDrawings();
+      drawOverlays();
+    }
+    return;
+  }
+  if (S.tool === "hline") {
+    const made = { id: Date.now(), type: "hline", p1: pt.p, color: $("ink").value };
+    S.drawings.push(made);
+    finishDrawing(made);
+    return;
+  }
+  if (S.tool === "text") {
+    openTextEditor(null, pt);
+    return;
+  }
+  S.draft = { type: S.tool, t1: pt.t, p1: pt.p, t2: pt.t, p2: pt.p, color: $("ink").value };
+  try { $("draw").setPointerCapture(ev.pointerId); } catch (e) {}
+});
+$("draw").addEventListener("pointermove", (ev) => {
+  if (!S.draft) return;
+  const pt = pointer(ev);
+  if (pt.t == null || pt.p == null) return;
+  S.draft.t2 = pt.t;
+  S.draft.p2 = pt.p;
+  drawOverlays();
+});
+$("draw").addEventListener("pointerup", (ev) => {
+  if (!S.draft) return;
+  const pt = pointer(ev);
+  if (pt.t != null && pt.p != null) {
+    S.draft.t2 = pt.t;
+    S.draft.p2 = pt.p;
+  }
+  try { if ($("draw").hasPointerCapture(ev.pointerId)) $("draw").releasePointerCapture(ev.pointerId); } catch (e) {}
+  commitDraft();
+});
+$("draw").addEventListener("pointercancel", () => commitDraft());
+$("draw").addEventListener("contextmenu", (ev) => {
+  if (S.tool === "cursor") return;
+  ev.preventDefault();
+  S.draft = null;
+  useTool("cursor");
+});
+for (const b of document.querySelectorAll("#tools button")) {
+  b.onclick = () => useTool(b.dataset.tool);
+}
+chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+  if (holdingCamera) return;
+  if (range && range.from < 12 && !S.loadingMore && !S.playing) {
+    S.loadingMore = true;
+    loadOlder().finally(() => { S.loadingMore = false; });
+  }
+  drawOverlays();
+  saveView();
+});
+chart.subscribeCrosshairMove(() => drawOverlays());
+$("chart").addEventListener("mouseup", () => drawOverlays());
+
+$("play").onclick = toggle;
+function beginDrag(ev) {
+  const hit = orderAt(ev);
+  if (!hit) return false;
+  const y = chartPoint(ev).y;
+  const line = hit === "SL" ? S.pos.sl : S.pos.tp;
+  const y0 = yOf(S.pos.entry);
+  const y1 = yOf(S.pos.entry + 10);
+  S.dragMap = y0 != null && y1 != null && y0 !== y1 ? { p0: S.pos.entry, y0, slope: 10 / (y1 - y0) } : null;
+  S.drag = hit;
+  S.dragGrab = (priceAtY(y) ?? line) - line;
+  S.down = null;
+  S.dragAuto = candle.priceScale().options().autoScale;
+  candle.priceScale().applyOptions({ autoScale: false });
+  S.dragPointer = ev.pointerId;
+  try { $("chartwrap").setPointerCapture(ev.pointerId); } catch (e) {}
+  ev.preventDefault();
+  ev.stopPropagation();
+  paintCursor(ev);
+  return true;
+}
+function onChartPointerDown(ev) {
+  if (ev.button !== 0 || S.tool !== "cursor") return;
+  if (beginDrag(ev)) return;
+  const pt = pointer(ev);
+  const hit = pickDrawing(pt.x, pt.y);
+  if (!hit) {
+    S.down = { x: pt.x, y: pt.y };
+    return;
+  }
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (hit.handle === "delete") {
+    S.drawings = S.drawings.filter((d) => d !== hit.d);
+    S.selected = null;
+    saveDrawings();
+    drawOverlays();
+    return;
+  }
+  if (hit.d.type === "text" && S.lastPick && S.lastPick.id === hit.d.id && performance.now() - S.lastPick.at < 450) {
+    openTextEditor(hit.d, pt);
+    return;
+  }
+  S.lastPick = { id: hit.d.id, at: performance.now() };
+  S.selected = hit.d.id;
+  S.down = null;
+  const spacing = chart.timeScale().options().barSpacing || 6;
+  const py = candle.coordinateToPrice(pt.y);
+  const py2 = candle.coordinateToPrice(pt.y + 10);
+  S.edit = {
+    id: hit.d.id, handle: hit.handle,
+    t: pt.t, p: pt.p, x: pt.x, y: pt.y,
+    t1: hit.d.t1, p1: hit.d.p1, t2: hit.d.t2, p2: hit.d.p2,
+    secPerPx: barStep() / spacing,
+    pricePerPx: py != null && py2 != null ? (py2 - py) / 10 : 0,
+  };
+  S.editPointer = ev.pointerId;
+  try { $("chartwrap").setPointerCapture(ev.pointerId); } catch (err) {}
+  drawOverlays();
+}
+$("chartwrap").addEventListener("mousedown", (ev) => {
+  if (!S.edit && !S.drag) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+}, true);
+$("chartwrap").addEventListener("pointerdown", onChartPointerDown, true);
+function onPointerMove(ev) {
+  if (S.drag) applyDrag(ev);
+  else if (S.edit && (ev.buttons & 1)) applyEdit(ev);
+  else if (S.tool === "cursor") paintCursor(ev);
+}
+window.addEventListener("mousemove", onPointerMove);
+window.addEventListener("pointermove", onPointerMove);
+window.addEventListener("mouseup", () => {
+  endEdit();
+  endOrderDrag();
+});
+window.addEventListener("pointercancel", () => { endEdit(); endOrderDrag(); });
+window.addEventListener("pointerup", (ev) => {
+  endOrderDrag();
+  endEdit();
+  if (!S.down) return;
+  const pt = pointer(ev);
+  if (Math.hypot(pt.x - S.down.x, pt.y - S.down.y) < 5) {
+    S.selected = null;
+    drawOverlays();
+  }
+  S.down = null;
+});
+$("fwd").onclick = () => { pause(); step(1, 1); };
+$("back").onclick = () => { pause(); step(-1, 1); };
+$("tostart").onclick = () => { pause(); applyCursor(S.days[Math.max(0, dayIndex(S.cursor))].start_ts, false); };
+$("toend").onclick = () => { pause(); applyCursor(S.meta.last, true); };
+$("reset").onclick = resetChart;
+$("slider").addEventListener("change", () => {
+  pause();
+  applyCursor(S.days[Number($("slider").value)].start_ts, true);
+});
+$("buy").onclick = () => place("long");
+$("sell").onclick = () => place("short");
+$("flat").onclick = flatten;
+$("clearj").onclick = () => { S.trades = []; S.pos = null; updateHud(); saveJournal(true); drawOverlays(); };
+window.addEventListener("pagehide", () => {
+  clearTimeout(journalTimer);
+  postJournal();
+  clearTimeout(viewTimer);
+  writeView();
+  if (booted) {
+    fetch("/api/drawings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ drawings: S.drawings }),
+      keepalive: true,
+    });
+  }
+});
+$("go").onclick = () => {
+  const raw = $("jump").value.trim().replace(/utc/ig, "").trim().replace(" ", "T");
+  const ms = Date.parse(raw.endsWith("Z") ? raw : raw + "Z");
+  if (!Number.isFinite(ms)) return;
+  pause();
+  applyCursor(Math.floor(ms / 1000), true);
+};
+$("rth").onclick = () => {
+  const next = S.days.find((d) => d.rth_ts != null && d.rth_ts > S.cursor);
+  if (!next) return;
+  pause();
+  applyCursor(next.rth_ts, true);
+};
+["qty", "slpts", "tppts", "product", "comm"].forEach((id) => $(id).addEventListener("input", updateHud));
+window.addEventListener("keydown", (e) => {
+  const typing = ["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName);
+  if (e.key === "Escape" && !typing) {
+    S.draft = null;
+    S.selected = null;
+    useTool("cursor");
+    return;
+  }
+  if (e.key === " " && !typing) { e.preventDefault(); toggle(); }
+  else if (e.key === "ArrowRight" && !typing) { pause(); step(1, 1); }
+  else if (e.key === "ArrowLeft" && !typing) { pause(); step(-1, 1); }
+  else if ((e.key === "b" || e.key === "B") && !typing) place("long");
+  else if ((e.key === "s" || e.key === "S") && !typing) place("short");
+  else if ((e.key === "f" || e.key === "F") && !typing) flatten();
+  else if ((e.key === "Delete" || e.key === "Backspace") && S.selected != null && !typing) {
+    S.drawings = S.drawings.filter((d) => d.id !== S.selected);
+    S.selected = null;
+    saveDrawings();
+    drawOverlays();
+  } else if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)) {
+    S.drawings.pop();
+    saveDrawings();
+    drawOverlays();
+  }
+});
+boot().catch((err) => { $("when").textContent = String(err); });
+</script>
+</body>
+</html>
